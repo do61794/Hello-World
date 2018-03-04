@@ -295,7 +295,7 @@ private timeIntervalLabel() {
 //this routine schedules the scheduleCheck routine to run after false alarm time period has expired
 //****************************************************************************************************************************
 
-//this routine schedules the initial run of scheduleCheck routine upon a mode change
+//this routine is triggered by a change in Moke, it then schedules the initial run of scheduleCheck routine
 def modeChangeHandler(evt) {
 	log.trace ("Enter modeChangeHandler Suboutine")
 	def delay = (falseAlarmThreshold != null && falseAlarmThreshold != "") ? falseAlarmThreshold * 60 : 2 * 60  
@@ -303,18 +303,19 @@ def modeChangeHandler(evt) {
 }
 
 
-//main logic routine to evaluate mode and then schedule next run or unschedule next run of scheduleCheck routine
+//main logic routine to evaluate Mode and then schedule next run or unschedule next run of scheduleCheck routine
 def scheduleCheck(evt){
 	log.trace ("Enter scheduleCheck routine")
     
-    //to iliminate multiple iterations through the restriction routines we set our boolean variables here
+    //to eliminate multiple iterations through the restriction routines we set our boolean variables here
+    //we check four restrictions: Mode, Day of Week, Time Period, and Presense Sensors
     def modeResult = getModeOk()
     def daysResult = getDaysOk()
     def timeResult = getTimeOk()
     def homeResult = getHomeIsEmpty()
    
     if (modeResult){
-    	//we are in the correct mode, we may make something happen, but will definetly schedule scheduleCheck routine to run when the frequency demands it
+    	//we are in the CORRECT mode, we MAY make something happen, but will DEFINETLY schedule scheduleCheck routine to run when the frequency demands it
         if (daysResult && timeResult && homeResult) {
         	//we turn off lights, we turn on the next set of random lights, and schedule the scheduleCheck routine to run again
         	log.trace("*** Day, Time and Presense OK, Running . . . ")
@@ -387,16 +388,18 @@ def scheduleCheck(evt){
 
 
 private getOffsetDays() {
+	//this subroutine is used to determine the number of days to offset from today to schedule the scheduleCheck routine to run
 	log.trace ("Entered getOffsetDays routine")
     
     //get the current integer day of the week, Sunday is day 1
     def currentDate = new Date()
 	def currentDay = currentDate[Calendar.DAY_OF_WEEK]
-	log.trace ("Current Day: $currentDay")
     
-    def result = null
+    //initialize the subroutine result variable
+    int result = 0
 	
     if (currentDay == 7) {
+    	//today is day 7, pretty straight forward, go through the seven days in cronological order and set result variable
         if(days.contains("Sunday")) {result = 1}
         else if(days.contains("Monday")) {result = 2}
         else if(days.contains("Tuesday")) {result = 3}
@@ -406,42 +409,50 @@ private getOffsetDays() {
         else if(days.contains("Saturday")) {result = 7}
     }
     else {
-    	log.trace ("We are in the else statement")
+    	//today is not day 7, we iterate through the for loop to determine number of days to offset from today and set the result variable
+        //we must iterate thru in cronological order which requires two For Loops to accomplish
+    	
     	int counter = 0
         
-        for (int i = currentDay + 1 ; i = 7 ; i++) {
-        	counter = counter + 1
-        	switch (i) {
-            	case 1: if(days.contains("Sunday")) {result = counter}; break
-                case 2: if(days.contains("Monday")) {result = counter}; break
-                case 3: if(days.contains("Tuesday")) {result = counter}; break
-                case 4: if(days.contains("Wednesday")) {result = counter}; break
-                case 5: if(days.contains("Thursday")) {result = counter}; break
-                case 6: if(days.contains("Friday")) {result = counter}; break
-                case 7: if(days.contains("Saturday")) {result = counter}; break
-            }
-        }
-        
-        
-        for (int i = 1 ; i = currentDay ; i++) {
-        	//if result was set in the for loop above, then exit this for loop
-            if (result != null) {break}
+        for (int i = currentDay + 1  ; i < 8 ; i++) {
+        	//if result has been assigned, no need to continue the For Loop
+         	if (result != 0) {break} 
             
         	counter = counter + 1
+        
+            switch (i) {
+            	case 1: if(days.contains("Sunday")) {result = counter}; break;
+                case 2: if(days.contains("Monday")) {result = counter}; break;
+                case 3: if(days.contains("Tuesday")) {result = counter}; break;
+                case 4: if(days.contains("Wednesday")) {result = counter}; break;
+                case 5: if(days.contains("Thursday")) {result = counter}; break;
+                case 6: if(days.contains("Friday")) {result = counter}; break;
+                case 7: if(days.contains("Saturday")) {result = counter}; break;
+                default: result = 0; break;
+            }
+        } 
+        
+        for (int i = 1 ; i < currentDay + 1 ; 1) {
+        	//if result was set in the for loop above or in this For Loop, then exit this for loop
+            if (result != 0) {break}
+			
+            //don't reset the counter between For Loops
+        	counter = counter + 1
+            
         	switch (i) {
-            	case 1: if(days.contains("Sunday")) {result = counter}; break
-                case 2: if(days.contains("Monday")) {result = counter}; break
-                case 3: if(days.contains("Tuesday")) {result = counter}; break
-                case 4: if(days.contains("Wednesday")) {result = counter}; break
-                case 5: if(days.contains("Thursday")) {result = counter}; break
-                case 6: if(days.contains("Friday")) {result = counter}; break
-                case 7: if(days.contains("Saturday")) {result = counter}; break
+            	case 1: if(days.contains("Sunday")) {result = counter}; break;
+                case 2: if(days.contains("Monday")) {result = counter}; break;
+                case 3: if(days.contains("Tuesday")) {result = counter}; break;
+                case 4: if(days.contains("Wednesday")) {result = counter}; break;
+                case 5: if(days.contains("Thursday")) {result = counter}; break;
+                case 6: if(days.contains("Friday")) {result = counter}; break;
+                case 7: if(days.contains("Saturday")) {result = counter}; break;
+                default: result = 0; break;
             }
         }
     }
 
 	return result
-    
 }
 
 
@@ -503,13 +514,13 @@ private timeWindowStart() {
 	if (startTimeType == "sunrise") {
 		result = location.currentState("sunriseTime")?.dateValue
 		if (result && startTimeOffset) {
-			result = new Date(result.time + Math.round(startTimeOffset * 60))
+			result = new Date(result.time + Math.round(startTimeOffset * 60000))
 		}
 	}
 	else if (startTimeType == "sunset") {
 		result = location.currentState("sunsetTime")?.dateValue
 		if (result && startTimeOffset) {
-			result = new Date(result.time + Math.round(startTimeOffset * 60))
+			result = new Date(result.time + Math.round(startTimeOffset * 60000))
 		}
 	}
 	else if (starting && location.timeZone) {
@@ -524,13 +535,13 @@ private timeWindowStop() {
 	if (endTimeType == "sunrise") {
 		result = location.currentState("sunriseTime")?.dateValue
 		if (result && endTimeOffset) {
-			result = new Date(result.time + Math.round(endTimeOffset * 60))
+			result = new Date(result.time + Math.round(endTimeOffset * 60000))
 		}
 	}
 	else if (endTimeType == "sunset") {
 		result = location.currentState("sunsetTime")?.dateValue
 		if (result && endTimeOffset) {
-			result = new Date(result.time + Math.round(endTimeOffset * 60))
+			result = new Date(result.time + Math.round(endTimeOffset * 60000))
 		}
 	}
 	else if (ending && location.timeZone) {
